@@ -12,9 +12,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Repository
+      - name: Checkout Repository (Full History)
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Ensures all files are checked out
 
+      - name: Verify Repository Structure
+        run: ls -R
+          
       - name: Setup Hugo
         uses: peaceiris/actions-hugo@v2
         with:
@@ -22,9 +27,12 @@ jobs:
 
       - name: Build Hugo Site
         run: |
+          if [ ! -d "apps/dannowak" ]; then
+            echo "Error: Directory apps/dannowak not found!"
+            exit 1
+          fi
           cd apps/dannowak
           hugo --minify
-        working-directory: apps/dannowak
 
       - name: Deploy to S3
         run: |
