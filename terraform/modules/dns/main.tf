@@ -1,3 +1,6 @@
+# -------------------------------
+# Terraform Provider Configuration
+# -------------------------------
 terraform {
   required_providers {
     aws = {
@@ -6,12 +9,16 @@ terraform {
   }
 }
 
-variable "s3_bucket_regional_domain_name" {}
-
+# -------------------------------
+# Route 53: DNS Zone for dannowak.com
+# -------------------------------
 resource "aws_route53_zone" "main" {
   name = "dannowak.com"
 }
 
+# -------------------------------
+# ACM Certificate for CloudFront
+# -------------------------------
 resource "aws_acm_certificate" "cert" {
   domain_name       = "dannowak.com"
   validation_method = "DNS"
@@ -21,6 +28,9 @@ resource "aws_acm_certificate" "cert" {
   }
 }
 
+# -------------------------------
+# Route 53 DNS Record for ACM Validation
+# -------------------------------
 resource "aws_route53_record" "cert_validation" {
   for_each = {
     for dvo in aws_acm_certificate.cert.domain_validation_options : dvo.domain_name => {
@@ -37,6 +47,9 @@ resource "aws_route53_record" "cert_validation" {
   ttl     = 60
 }
 
+# -------------------------------
+# CloudFront Distribution for Static Site
+# -------------------------------
 resource "aws_cloudfront_distribution" "cdn" {
   origin {
     domain_name = var.s3_bucket_regional_domain_name
@@ -62,8 +75,9 @@ resource "aws_cloudfront_distribution" "cdn" {
   }
 
   viewer_certificate {
-    acm_certificate_arn = aws_acm_certificate.cert.arn
-    ssl_support_method  = "sni-only"
+    acm_certificate_arn      = aws_acm_certificate.cert.arn
+    ssl_support_method       = "sni-only"
+    minimum_protocol_version = "TLSv1.2_2021" # ✅ Fix: Upgrade TLS version
   }
 
   restrictions {
@@ -74,6 +88,9 @@ resource "aws_cloudfront_distribution" "cdn" {
 }
 
 
+# -------------------------------
+# Route 53 A Record to CloudFront
+# -------------------------------
 resource "aws_route53_record" "root" {
   zone_id = aws_route53_zone.main.zone_id
   name    = "dannowak.com"
@@ -84,12 +101,4 @@ resource "aws_route53_record" "root" {
     zone_id                = aws_cloudfront_distribution.cdn.hosted_zone_id
     evaluate_target_health = false
   }
-}
-
-output "cloudfront_domain_name" {
-  value = aws_cloudfront_distribution.cdn.domain_name
-}
-
-output "cloudfront_hosted_zone_id" {
-  value = aws_cloudfront_distribution.cdn.hosted_zone_id
 }
